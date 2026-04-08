@@ -17,11 +17,15 @@ app.use(express.json());
 app.post("/register", async (req, res) => {
   const { username, password } = req.body;
 
-  const user = new User({
-    username,
-    password,
-    balance: 1000
-  });
+  const bcrypt = require("bcrypt");
+
+const hashedPassword = await bcrypt.hash(password, 10);
+
+const user = new User({
+  username,
+  password: hashedPassword,
+  balance: 1000
+});
 
   await user.save();
 
@@ -29,17 +33,32 @@ app.post("/register", async (req, res) => {
 });
 
 
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
-  const user = await User.findOne({ username, password });
+  const user = await User.findOne({ username });
 
   if (!user) {
     return res.json({ error: "Invalid credentials" });
   }
 
+  const isMatch = await bcrypt.compare(password, user.password);
+
+  if (!isMatch) {
+    return res.json({ error: "Invalid credentials" });
+  }
+
+  const token = jwt.sign(
+    { userId: user._id },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+
   res.json({
-    userId: user._id,
+    token,
     balance: user.balance
   });
 });
@@ -78,6 +97,7 @@ mongoose.connect(process.env.MONGO_URI)
   password: String,
   balance: { type: Number, default: 1000 },
   bet: { type: Number, default: 0 },
+  nextBet: { type: Number, default: 0 },
   cashedOut: { type: Boolean, default: false }
 });
 
@@ -141,6 +161,7 @@ function generateCrash() {
 
 // 🚀 игра
 let multiplier = 1;
+let gameState = "WAITING";
 let crashPoint = generateCrash();
 let gameInterval = null;
 
@@ -206,12 +227,21 @@ function endRound() {
 
 
 io.on("connection", async (socket) => {
-  const userId = socket.handshake.query.userId;
+  
+  const token = socket.handshake.auth.token;
 
-  if (!userId) return;
+if (!token) return;
 
-  const user = await User.findById(userId);
-  if (!user) return;
+let decoded;
+
+try {
+  decoded = jwt.verify(token, process.env.JWT_SECRET);
+} catch {
+  return;
+}
+
+const user = await User.findById(decoded.userId);
+if (!user) return;
 
   players[socket.id] = user;
 
@@ -221,9 +251,7 @@ io.on("connection", async (socket) => {
     if (amount > user.balance) return;
 	if (gameState !== "WAITING") return;
 
-    user.balance -= amount;
 	user.nextBet = amount;
-    user.bet = amount;
     user.cashedOut = false;
 
     socket.emit("balance", user.balance);
