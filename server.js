@@ -3,14 +3,18 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const fs = require("fs");
+const path = require("path");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
 const app = express();
-app.use(cors({ origin: ["https://lumoup.online", "https://www.lumoup.online"], credentials: true }));
+app.use(cors({
+  origin: ["https://lumoup.online", "https://www.lumoup.online"],
+  credentials: true
+}));
 app.use(express.json());
 
-// Модель пользователя с исправленными полями
+// Схема пользователя (добавлено nextBet)
 const userSchema = new mongoose.Schema({
   username: String,
   password: String,
@@ -21,13 +25,42 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model("User", userSchema);
 
+// РАЗДАЧА ФРОНТЕНДА (Исправлено для Render)
+// Если папка dist лежит в корне проекта:
+const distPath = path.join(__dirname, "dist"); 
+// Если она внутри папки client:
+// const distPath = path.join(__dirname, "client", "dist");
+
+app.use(express.static(distPath));
+
+app.post("/register", async (req, res) => {
+  const { username, password } = req.body;
+  try {
+    const user = new User({ username, password, balance: 1000 });
+    await user.save();
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+  const user = await User.findOne({ username, password });
+  if (!user) return res.json({ error: "Invalid credentials" });
+  res.json({ userId: user._id, balance: user.balance });
+});
+
+// Все остальные запросы шлем на index.html
+app.get("*", (req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
+
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 let history = [];
 let players = {};
 let multiplier = 1;
-let gameState = "WAITING"; // Добавлено состояние игры
+let gameState = "WAITING"; // БЫЛО ПРОПУЩЕНО
 let gameInterval = null;
 
 function generateCrash() {
@@ -42,7 +75,6 @@ async function startRound() {
   multiplier = 1;
   let crashPoint = generateCrash();
 
-  // Активация ставок на раунд
   const users = await User.find({ nextBet: { $gt: 0 } });
   for (let user of users) {
     user.bet = user.nextBet;
@@ -50,7 +82,6 @@ async function startRound() {
     user.cashedOut = false;
     await user.save();
     
-    // Оповещаем сокеты пользователя
     Object.keys(players).forEach(sid => {
       if (players[sid]._id.toString() === user._id.toString()) {
         io.to(sid).emit("balance", user.balance);
@@ -90,28 +121,28 @@ io.on("connection", async (socket) => {
   socket.emit("history", history);
 
   socket.on("bet", async (amount) => {
-    const freshUser = await User.findById(user._id);
-    if (amount > freshUser.balance || gameState !== "WAITING") return;
-    freshUser.balance -= amount;
-    freshUser.nextBet = amount;
-    await freshUser.save();
-    socket.emit("balance", freshUser.balance);
+    const u = await User.findById(user._id);
+    if (amount > u.balance || gameState !== "WAITING") return;
+    u.balance -= amount;
+    u.nextBet = amount;
+    await u.save();
+    socket.emit("balance", u.balance);
   });
 
   socket.on("cashout", async () => {
-    const freshUser = await User.findById(user._id);
-    if (!freshUser.bet || freshUser.cashedOut || gameState !== "RUNNING") return;
-    const win = freshUser.bet * multiplier;
-    freshUser.balance += win;
-    freshUser.cashedOut = true;
-    freshUser.bet = 0;
-    await freshUser.save();
-    socket.emit("balance", freshUser.balance);
+    const u = await User.findById(user._id);
+    if (!u.bet || u.cashedOut || gameState !== "RUNNING") return;
+    u.balance += (u.bet * multiplier);
+    u.cashedOut = true;
+    u.bet = 0;
+    await u.save();
+    socket.emit("balance", u.balance);
   });
 
   socket.on("disconnect", () => delete players[socket.id]);
 });
 
 mongoose.connect(process.env.MONGO_URI).then(() => {
-  server.listen(3001, () => startRound());
+  const PORT = process.env.PORT || 3001;
+  server.listen(PORT, "0.0.0.0", () => startRound());
 });
