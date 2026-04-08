@@ -13,6 +13,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use("/api", router);
 
 app.post("/register", async (req, res) => {
   const { username, password } = req.body;
