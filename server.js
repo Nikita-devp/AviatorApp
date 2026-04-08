@@ -14,9 +14,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Схема пользователя (добавлено nextBet)
+// Схема пользователя
 const userSchema = new mongoose.Schema({
-  username: String,
+  username: { type: String, unique: true },
   password: String,
   balance: { type: Number, default: 1000 },
   bet: { type: Number, default: 0 },
@@ -25,68 +25,63 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model("User", userSchema);
 
-// РАЗДАЧА ФРОНТЕНДА (Исправлено для Render)
-// Если папка dist лежит в корне проекта:
-const distPath = path.join(__dirname, "dist"); 
-// Если она внутри папки client:
-// const distPath = path.join(__dirname, "client", "dist");
+// Глобальные переменные игры
+let history = [];
+let players = {};
+let multiplier = 1.0;
+let gameState = "WAITING"; 
+let crashPoint = 1.0;
+let gameInterval = null;
 
+// ПУТИ К СТАТИКЕ (согласно твоим папкам)
+const distPath = path.join(__dirname, "client/dist");
 app.use(express.static(distPath));
 
 app.post("/register", async (req, res) => {
-  const { username, password } = req.body;
   try {
-    const user = new User({ username, password, balance: 1000 });
+    const { username, password } = req.body;
+    const user = new User({ username, password });
     await user.save();
     res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { res.status(500).json({ error: "Ошибка регистрации" }); }
 });
 
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
   const user = await User.findOne({ username, password });
-  if (!user) return res.json({ error: "Invalid credentials" });
+  if (!user) return res.json({ error: "Неверные данные" });
   res.json({ userId: user._id, balance: user.balance });
-});
-
-// Все остальные запросы шлем на index.html
-app.get("*", (req, res) => {
-  res.sendFile(path.join(distPath, "index.html"));
 });
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-let history = [];
-let players = {};
-let multiplier = 1;
-let gameState = "WAITING"; // БЫЛО ПРОПУЩЕНО
-let gameInterval = null;
-
 function generateCrash() {
   const r = Math.random();
   if (r < 0.25) return 1.0;
   let crash = 0.97 / (1 - r);
-  return Math.min(Math.floor(crash * 100) / 100, 30);
+  return Math.min(Math.floor(crash * 100) / 100, 35);
 }
 
 async function startRound() {
   gameState = "WAITING";
-  multiplier = 1;
-  let crashPoint = generateCrash();
+  multiplier = 1.0;
+  crashPoint = generateCrash();
 
   const users = await User.find({ nextBet: { $gt: 0 } });
-  for (let user of users) {
-    user.bet = user.nextBet;
-    user.nextBet = 0;
-    user.cashedOut = false;
-    await user.save();
+  for (let u of users) {
+    u.balance -= u.nextBet;
+    u.bet = u.nextBet;
+    u.nextBet = 0;
+    u.cashedOut = false;
+    await u.save();
     
-    Object.keys(players).forEach(sid => {
-      if (players[sid]._id.toString() === user._id.toString()) {
-        io.to(sid).emit("balance", user.balance);
+    // Оповещаем фронт об изменении баланса
+    for (let sid in players) {
+      if (players[sid]._id.toString() === u._id.toString()) {
+        io.to(sid).emit("balance", u.balance);
       }
-    });
+    }
   }
 
   setTimeout(() => {
@@ -123,10 +118,8 @@ io.on("connection", async (socket) => {
   socket.on("bet", async (amount) => {
     const u = await User.findById(user._id);
     if (amount > u.balance || gameState !== "WAITING") return;
-    u.balance -= amount;
     u.nextBet = amount;
     await u.save();
-    socket.emit("balance", u.balance);
   });
 
   socket.on("cashout", async () => {
@@ -140,6 +133,11 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("disconnect", () => delete players[socket.id]);
+});
+
+// КРИТИЧЕСКИЙ ИСПРАВЛЕННЫЙ ПУТЬ
+app.get("*", (req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
 });
 
 mongoose.connect(process.env.MONGO_URI).then(() => {
