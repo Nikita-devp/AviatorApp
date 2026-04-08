@@ -3,8 +3,16 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
+
+const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+
 const app = express();
+
+// ✅ CORS
 app.use(cors({
   origin: [
     "https://lumoup.online",
@@ -12,29 +20,58 @@ app.use(cors({
   ],
   credentials: true
 }));
+
 app.use(express.json());
+
+/* =========================
+   📦 МОДЕЛИ (ВАЖНО ВВЕРХУ)
+========================= */
+
+const userSchema = new mongoose.Schema({
+  username: String,
+  password: String,
+  balance: { type: Number, default: 1000 },
+  bet: { type: Number, default: 0 },
+  nextBet: { type: Number, default: 0 },
+  cashedOut: { type: Boolean, default: false }
+});
+
+const User = mongoose.model("User", userSchema);
+
+/* =========================
+   🔌 SERVER + SOCKET
+========================= */
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "https://lumoup.online",
+      "https://www.lumoup.online"
+    ],
+    credentials: true
+  }
+});
+
+/* =========================
+   👤 AUTH
+========================= */
 
 app.post("/register", async (req, res) => {
   const { username, password } = req.body;
 
-  const bcrypt = require("bcrypt");
+  const hashedPassword = await bcrypt.hash(password, 10);
 
-const hashedPassword = await bcrypt.hash(password, 10);
-
-const user = new User({
-  username,
-  password: hashedPassword,
-  balance: 1000
-});
+  const user = new User({
+    username,
+    password: hashedPassword
+  });
 
   await user.save();
 
   res.json({ success: true });
 });
-
-
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
@@ -63,8 +100,9 @@ app.post("/login", async (req, res) => {
   });
 });
 
-
-const path = require("path");
+/* =========================
+   📁 STATIC (FRONT)
+========================= */
 
 app.use(express.static(path.join(__dirname, "client/dist")));
 
@@ -72,61 +110,12 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, "client/dist/index.html"));
 });
 
+/* =========================
+   🎮 GAME LOGIC
+========================= */
 
-const mongoose = require("mongoose");
-
-console.log("START CONNECT");
-
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB connected");
-
-    const PORT = process.env.PORT || 3001;
-
-    server.listen(PORT, () => {
-      console.log("SERVER", PORT);
-      startRound();
-    });
-  })
-  .catch(err => console.error("❌ Mongo error:", err));
-  
-  // модель польза
-  
-  const userSchema = new mongoose.Schema({
-  username: String,
-  password: String,
-  balance: { type: Number, default: 1000 },
-  bet: { type: Number, default: 0 },
-  nextBet: { type: Number, default: 0 },
-  cashedOut: { type: Boolean, default: false }
-});
-
-const User = mongoose.model("User", userSchema);
-  
-  const playerSchema = new mongoose.Schema({
-  socketId: String,
-  balance: Number,
-  bet: Number,
-  cashedOut: Boolean
-});
-
-const Player = mongoose.model("Player", playerSchema);
-
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: [
-      "https://lumoup.online",
-      "https://www.lumoup.online"
-    ],
-    credentials: true
-  }
-});
-
-// 📂 файл истории
 const HISTORY_FILE = "history.json";
 
-// 📊 загрузка истории
 let history = [];
 if (fs.existsSync(HISTORY_FILE)) {
   try {
@@ -136,15 +125,12 @@ if (fs.existsSync(HISTORY_FILE)) {
   }
 }
 
-// 💾 сохранение
 function saveHistory() {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(history));
 }
 
-// 👤 игроки
 let players = {};
 
-// 🎯 генерация краша
 function generateCrash() {
   const r = Math.random();
   if (r < 0.25) return 1.0;
@@ -159,7 +145,6 @@ function generateCrash() {
   return crash;
 }
 
-// 🚀 игра
 let multiplier = 1;
 let gameState = "WAITING";
 let crashPoint = generateCrash();
@@ -170,7 +155,6 @@ async function startRound() {
   multiplier = 1;
   crashPoint = generateCrash();
 
-  // 👇 ПРИМЕНЯЕМ СТАВКИ
   const users = await User.find();
 
   for (let user of users) {
@@ -182,7 +166,6 @@ async function startRound() {
 
       await user.save();
 
-      // если игрок онлайн — обновим баланс
       for (let socketId in players) {
         if (players[socketId]._id.toString() === user._id.toString()) {
           io.to(socketId).emit("balance", user.balance);
@@ -192,25 +175,23 @@ async function startRound() {
   }
 
   setTimeout(() => {
-  gameState = "RUNNING";
+    gameState = "RUNNING";
 
-  gameInterval = setInterval(() => {
-    multiplier += 0.02;
+    gameInterval = setInterval(() => {
+      multiplier += 0.02;
+      io.emit("tick", multiplier);
 
-    io.emit("tick", multiplier);
+      if (multiplier >= crashPoint) {
+        clearInterval(gameInterval);
+        gameInterval = null;
+        endRound();
+      }
+    }, 100);
 
-    if (multiplier >= crashPoint) {
-      clearInterval(gameInterval);
-      gameInterval = null;
-      endRound();
-    }
-  }, 100);
-
-}, 5000);
+  }, 5000);
 }
 
 function endRound() {
-  // история
   history.unshift(multiplier.toFixed(2));
   history = history.slice(0, 25);
   saveHistory();
@@ -218,30 +199,29 @@ function endRound() {
   io.emit("history", history);
   io.emit("crash", multiplier);
 
-  // пауза перед новым раундом
   setTimeout(() => {
     startRound();
   }, 3000);
 }
 
-
+/* =========================
+   🔌 SOCKET CONNECTION
+========================= */
 
 io.on("connection", async (socket) => {
-  
+
   const token = socket.handshake.auth.token;
+  if (!token) return;
 
-if (!token) return;
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return;
+  }
 
-let decoded;
-
-try {
-  decoded = jwt.verify(token, process.env.JWT_SECRET);
-} catch {
-  return;
-}
-
-const user = await User.findById(decoded.userId);
-if (!user) return;
+  const user = await User.findById(decoded.userId);
+  if (!user) return;
 
   players[socket.id] = user;
 
@@ -249,27 +229,26 @@ if (!user) return;
 
   socket.on("bet", async (amount) => {
     if (amount > user.balance) return;
-	if (gameState !== "WAITING") return;
+    if (gameState !== "WAITING") return;
 
-	user.nextBet = amount;
+    user.nextBet = amount;
     user.cashedOut = false;
 
-    socket.emit("balance", user.balance);
     await user.save();
   });
-  
-  socket.on("getHistory", () => {
-  socket.emit("history", history);
-});
 
-socket.on("cancelBet", async () => {
-  user.nextBet = 0;
-  await user.save();
-});
+  socket.on("getHistory", () => {
+    socket.emit("history", history);
+  });
+
+  socket.on("cancelBet", async () => {
+    user.nextBet = 0;
+    await user.save();
+  });
 
   socket.on("cashout", async () => {
     if (!user.bet || user.cashedOut) return;
-    if (gameInterval === null) return; // игра уже закончена
+    if (gameInterval === null) return;
 
     const win = user.bet * multiplier;
 
@@ -284,3 +263,22 @@ socket.on("cancelBet", async () => {
     delete players[socket.id];
   });
 });
+
+/* =========================
+   🚀 START SERVER
+========================= */
+
+console.log("START CONNECT");
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log("✅ MongoDB connected");
+
+    const PORT = process.env.PORT || 3001;
+
+    server.listen(PORT, () => {
+      console.log("🚀 SERVER RUNNING ON", PORT);
+      startRound();
+    });
+  })
+  .catch(err => console.error("❌ Mongo error:", err));
