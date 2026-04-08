@@ -56,13 +56,14 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
 
-    server.listen(3001, () => {
-      console.log("SERVER 3001");
-	  startRound();
+    const PORT = process.env.PORT || 3001;
+
+    server.listen(PORT, () => {
+      console.log("SERVER", PORT);
+      startRound();
     });
   })
   .catch(err => console.error("❌ Mongo error:", err));
-  
   
   // модель польза
   
