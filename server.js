@@ -5,7 +5,13 @@ const cors = require("cors");
 const fs = require("fs");
 require("dotenv").config();
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    "https://lumoup.online",
+    "https://www.lumoup.online"
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 app.post("/register", async (req, res) => {
@@ -88,7 +94,13 @@ const Player = mongoose.model("Player", playerSchema);
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: [
+      "https://lumoup.online",
+      "https://www.lumoup.online"
+    ],
+    credentials: true
+  }
 });
 
 // 📂 файл истории
