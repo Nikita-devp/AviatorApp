@@ -172,7 +172,7 @@ async function startRound() {
     }
   }
 
-  setTimeout(() => {
+  setTimeout(async () => {
   gameState = "RUNNING";
 
   // отправили state
