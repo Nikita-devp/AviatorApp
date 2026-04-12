@@ -172,12 +172,12 @@ async function startRound() {
     }
   }
 
-  setTimeout(async () => {
+  setTimeout(() => {
   gameState = "RUNNING";
 
   // отправили state
   for (let socketId in players) {
-    const user = await User.findById(players[socketId]._id);
+    const user = players[socketId];
     io.to(socketId).emit("state", {
       gameState,
       bet: user.bet,
@@ -211,19 +211,17 @@ function endRound() {
   io.emit("history", history);
   gameState = "CRASHED";
 
-for (let socketId in players) {
-  const user = await User.findById(players[socketId]._id);
-  io.to(socketId).emit("state", {
-    gameState,
-    bet: user.bet,
-    nextBet: user.nextBet,
-    cashedOut: user.cashedOut,
-    balance: user.balance
-  });
-}
-  
-  
-  
+  for (let socketId in players) {
+    const user = players[socketId]; // ✅ ВОТ ТАК
+    io.to(socketId).emit("state", {
+      gameState,
+      bet: user.bet,
+      nextBet: user.nextBet,
+      cashedOut: user.cashedOut,
+      balance: user.balance
+    });
+  }
+
   io.emit("crash", multiplier);
 
   setTimeout(() => {
