@@ -15,7 +15,6 @@ const app = express();
 // ✅ CORS
 app.use(cors({
   origin: [
-    "https://lumoup.online",
     "https://www.lumoup.online"
   ],
   credentials: true
@@ -47,7 +46,6 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [
-      "https://lumoup.online",
       "https://www.lumoup.online"
     ],
     credentials: true
