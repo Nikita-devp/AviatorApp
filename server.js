@@ -173,33 +173,34 @@ async function startRound() {
   }
 
   setTimeout(() => {
-    gameState = "RUNNING";
+  gameState = "RUNNING";
 
+  // отправили state
+  for (let socketId in players) {
+    const user = players[socketId];
+    io.to(socketId).emit("state", {
+      gameState,
+      bet: user.bet,
+      nextBet: user.nextBet,
+      cashedOut: user.cashedOut,
+      balance: user.balance
+    });
+  }
 
-	  for (let socketId in players) {
-  const user = players[socketId];
-  io.to(socketId).emit("state", {
-    gameState,
-    bet: user.bet,
-    nextBet: user.nextBet,
-    cashedOut: user.cashedOut,
-    balance: user.balance
-  });
-}
-    
-    gameInterval = setInterval(() => {
-      multiplier += 0.02;
-      io.emit("tick", multiplier);
-}
+  // старт игры
+  gameInterval = setInterval(() => {
+    multiplier += 0.02;
+    io.emit("tick", multiplier);
 
-      if (multiplier >= crashPoint) {
-        clearInterval(gameInterval);
-        gameInterval = null;
-        endRound();
-      }
-    }, 100);
+    if (multiplier >= crashPoint) {
+      clearInterval(gameInterval);
+      gameInterval = null;
+      endRound();
+    }
 
-  }, 5000);
+  }, 100);
+
+}, 5000); // ✅ ВОТ ТВОИ 5 СЕКУНД
 }
 
 function endRound() {
@@ -281,6 +282,7 @@ function sendState(socket, user) {
 
   socket.on("cancelBet", async () => {
     user.nextBet = 0;
+	sendState(socket, user);
     await user.save();
   });
 
