@@ -165,10 +165,10 @@ async function startRound() {
       await user.save();
 
       for (let socketId in players) {
-        if (players[socketId]._id.toString() === user._id.toString()) {
-          io.to(socketId).emit("balance", user.balance);
-        }
-      }
+  if (players[socketId]._id.toString() === user._id.toString()) {
+    sendState(io.to(socketId), user);
+  }
+}
     }
   }
 
@@ -194,6 +194,8 @@ function endRound() {
   history = history.slice(0, 25);
   saveHistory();
 
+gameState = "CRASHED";
+
   io.emit("history", history);
   io.emit("crash", multiplier);
 
@@ -207,6 +209,17 @@ function endRound() {
 ========================= */
 
 io.on("connection", async (socket) => {
+
+function sendState(socket, user) {
+  socket.emit("state", {
+    gameState,
+    bet: user.bet,
+    nextBet: user.nextBet,
+    cashedOut: user.cashedOut,
+    balance: user.balance
+  });
+}
+
 
   const token = socket.handshake.auth.token;
   if (!token) return;
@@ -233,6 +246,7 @@ io.on("connection", async (socket) => {
     user.cashedOut = false;
 
     await user.save();
+	sendState(socket, user);
   });
 
   socket.on("getHistory", () => {
@@ -253,7 +267,7 @@ io.on("connection", async (socket) => {
     user.balance += win;
     user.cashedOut = true;
 
-    socket.emit("balance", user.balance);
+    sendState(socket, user);
     await user.save();
   });
 
