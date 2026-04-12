@@ -175,9 +175,22 @@ async function startRound() {
   setTimeout(() => {
     gameState = "RUNNING";
 
+
+	  for (let socketId in players) {
+  const user = players[socketId];
+  io.to(socketId).emit("state", {
+    gameState,
+    bet: user.bet,
+    nextBet: user.nextBet,
+    cashedOut: user.cashedOut,
+    balance: user.balance
+  });
+}
+    
     gameInterval = setInterval(() => {
       multiplier += 0.02;
       io.emit("tick", multiplier);
+}
 
       if (multiplier >= crashPoint) {
         clearInterval(gameInterval);
@@ -194,9 +207,22 @@ function endRound() {
   history = history.slice(0, 25);
   saveHistory();
 
-gameState = "CRASHED";
-
   io.emit("history", history);
+  gameState = "CRASHED";
+
+for (let socketId in players) {
+  const user = players[socketId];
+  io.to(socketId).emit("state", {
+    gameState,
+    bet: user.bet,
+    nextBet: user.nextBet,
+    cashedOut: user.cashedOut,
+    balance: user.balance
+  });
+}
+  
+  
+  
   io.emit("crash", multiplier);
 
   setTimeout(() => {
