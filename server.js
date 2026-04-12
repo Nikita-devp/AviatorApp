@@ -177,7 +177,7 @@ async function startRound() {
 
   // отправили state
   for (let socketId in players) {
-    const user = players[socketId];
+    const user = await User.findById(players[socketId]._id);
     io.to(socketId).emit("state", {
       gameState,
       bet: user.bet,
@@ -212,7 +212,7 @@ function endRound() {
   gameState = "CRASHED";
 
 for (let socketId in players) {
-  const user = players[socketId];
+  const user = await User.findById(players[socketId]._id);
   io.to(socketId).emit("state", {
     gameState,
     bet: user.bet,
@@ -282,8 +282,8 @@ function sendState(socket, user) {
 
   socket.on("cancelBet", async () => {
     user.nextBet = 0;
-	sendState(socket, user);
     await user.save();
+	sendState(socket, user);
   });
 
   socket.on("cashout", async () => {
@@ -294,9 +294,8 @@ function sendState(socket, user) {
 
     user.balance += win;
     user.cashedOut = true;
-
-    sendState(socket, user);
     await user.save();
+	sendState(socket, user);
   });
 
   socket.on("disconnect", () => {
