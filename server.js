@@ -74,9 +74,10 @@ app.use(cors({
 								);
 								
 								res.json({
-									token,
-									balance: user.balance
-								});
+  token,
+  balance: user.balance,
+  username: user.username
+});
 					});
 									
 									
