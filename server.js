@@ -80,7 +80,7 @@ app.use(cors({
 });
 					});
 									
-									
+					
 									app.use(express.static(path.join(__dirname, "client/dist")));
 									
 									app.use((req, res) => {
@@ -232,6 +232,7 @@ app.use(cors({
 											socket.emit("balance", user.balance);
 											
 											socket.on("bet", async (amount) => {
+												console.log("SERVER GOT BET:", amount);
 												if (amount > user.balance) return;
 												if (gameState !== "WAITING") return;
 												
