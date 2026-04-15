@@ -155,7 +155,8 @@ app.use(cors({
 												setTimeout(() => {
 													gameState = "RUNNING";
 													for (let socketId in players) {
-														const user = players[socketId];
+														const freshUser = await User.findById(user._id);
+players[socketId] = freshUser;
 														
 														io.to(socketId).emit("state", {
 															gameState,
@@ -180,7 +181,7 @@ app.use(cors({
 											}, 5000);
 											}
 											
-											function endRound() {
+											async function endRound() {
   history.unshift(multiplier.toFixed(2));
   history = history.slice(0, 25);
   saveHistory();
@@ -188,14 +189,27 @@ app.use(cors({
   io.emit("history", history);
 
   gameState = "CRASHED";
-  io.emit("state", { gameState });
+  
+  for (let socketId in players) {
+  const freshUser = await User.findById(players[socketId]._id);
+
+  players[socketId] = freshUser;
+
+  io.to(socketId).emit("state", {
+    gameState,
+    bet: freshUser.bet,
+    nextBet: freshUser.nextBet,
+    cashedOut: freshUser.cashedOut,
+    balance: freshUser.balance
+  });
+}
 
   io.emit("crash", multiplier);
 
   // ⬇️ через 2 секунды старт таймера
   setTimeout(() => {
     startCountdown();
-  }, 2000);
+  }, 3000);
 }
 
 let countdown = 10;
