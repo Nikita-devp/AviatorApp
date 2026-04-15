@@ -247,6 +247,16 @@ app.use(cors({
 												socket.emit("history", history);
 											});
 											
+											socket.on("crash", (m) => {
+  setMultiplier(m);
+  setIsCrashed(true);
+
+  setTimeout(() => {
+    setIsCrashed(false);
+    setMultiplier(1.0);
+  }, 3000);
+});
+											
 											socket.on("cancelBet", async () => {
 												user.nextBet = 0;
 												await user.save();
