@@ -152,33 +152,36 @@ app.use(cors({
 												}
 											}
 												
-												setTimeout(() => {
-													gameState = "RUNNING";
-													for (let socketId in players) {
-														const freshUser = await User.findById(user._id);
-players[socketId] = freshUser;
-														
-														io.to(socketId).emit("state", {
-															gameState,
-															bet: user.bet,
-															nextBet: user.nextBet,
-															cashedOut: user.cashedOut,
-															balance: user.balance
-														});
-													}
-													
-													gameInterval = setInterval(() => {
-														multiplier += 0.02;
-														io.emit("tick", multiplier);
-														
-														if (multiplier >= crashPoint) {
-															clearInterval(gameInterval);
-															gameInterval = null;
-															endRound();
-														}
-													}, 100);
-													
-											}, 5000);
+												setTimeout(async () => {
+  gameState = "RUNNING";
+
+  for (let socketId in players) {
+    const userId = players[socketId]._id;
+    const freshUser = await User.findById(userId);
+
+    players[socketId] = freshUser;
+
+    io.to(socketId).emit("state", {
+      gameState,
+      bet: freshUser.bet,
+      nextBet: freshUser.nextBet,
+      cashedOut: freshUser.cashedOut,
+      balance: freshUser.balance
+    });
+  }
+
+  gameInterval = setInterval(() => {
+    multiplier += 0.02;
+    io.emit("tick", multiplier);
+
+    if (multiplier >= crashPoint) {
+      clearInterval(gameInterval);
+      gameInterval = null;
+      endRound();
+    }
+  }, 100);
+
+}, 5000);
 											}
 											
 											async function endRound() {
@@ -193,7 +196,9 @@ players[socketId] = freshUser;
   for (let socketId in players) {
   const freshUser = await User.findById(players[socketId]._id);
 
-  players[socketId] = freshUser;
+  players[socketId] = {
+  _id: freshUser._id
+};
 
   io.to(socketId).emit("state", {
     gameState,
@@ -306,7 +311,7 @@ sendState(socket, updatedUser);
 											
 											socket.on("cashout", async () => {
 												if (!user.bet || user.cashedOut) return;
-												if (gameInterval === null) return;
+												if (!gameInterval) return;
 												
 												const win = user.bet * multiplier;
 												
