@@ -181,7 +181,7 @@ app.use(cors({
     }
   }, 100);
 
-}, 5000);
+}, 1000);
 											}
 											
 											async function endRound() {
