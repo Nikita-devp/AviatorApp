@@ -232,17 +232,21 @@ app.use(cors({
 											socket.emit("balance", user.balance);
 											
 											socket.on("bet", async (amount) => {
-												console.log("SERVER GOT BET:", amount);
-												if (amount > user.balance) return;
-												if (gameState !== "WAITING") return;
-												
-												user.nextBet = amount;
-												user.cashedOut = false;
-												
-												await user.save();
-												players[socket.id] = user;
-												sendState(socket, user);
-											});
+  console.log("SERVER GOT BET:", amount);
+
+  if (amount > user.balance) return;
+  if (gameState !== "WAITING") return;
+
+  user.nextBet = amount;
+  user.cashedOut = false;
+
+  await user.save();
+
+  const updatedUser = await User.findById(user._id);
+
+  players[socket.id] = updatedUser;
+  sendState(socket, updatedUser);
+});
 											
 											socket.on("getHistory", () => {
 												socket.emit("history", history);
@@ -252,10 +256,12 @@ app.use(cors({
 											
 											socket.on("cancelBet", async () => {
 												user.nextBet = 0;
-												await user.save();
-												
-												players[socket.id] = user;
-												sendState(socket, user);
+await user.save();
+
+const updatedUser = await User.findById(user._id);
+
+players[socket.id] = updatedUser;
+sendState(socket, updatedUser);
 											});
 											
 											socket.on("cashout", async () => {
@@ -268,10 +274,11 @@ app.use(cors({
 												user.cashedOut = true;
 												
 												await user.save();
-												
-												players[socket.id] = user;
-												
-												sendState(socket, user);
+
+const updatedUser = await User.findById(user._id);
+
+players[socket.id] = updatedUser;
+sendState(socket, updatedUser);
 											});
 											
 											socket.on("disconnect", () => {
