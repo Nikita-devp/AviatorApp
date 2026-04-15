@@ -126,6 +126,12 @@ app.use(cors({
 											multiplier = 1;
 											crashPoint = generateCrash();
 											
+											
+											io.emit("state", {
+  gameState,
+  countdown: 0
+});
+											
 											const users = await User.find();
 											
 											for (let user of users) {
@@ -175,30 +181,50 @@ app.use(cors({
 											}
 											
 											function endRound() {
-												history.unshift(multiplier.toFixed(2));
-												history = history.slice(0, 25);
-												saveHistory();
-												
-												io.emit("history", history);
-												gameState = "CRASHED";
-												
-												for (let socketId in players) {
-													const user = players[socketId]; // ✅ ВОТ ТАК
-													io.to(socketId).emit("state", {
-														gameState,
-														bet: user.bet,
-														nextBet: user.nextBet,
-														cashedOut: user.cashedOut,
-														balance: user.balance
-													});
-												}
-												
-												io.emit("crash", multiplier);
-												
-												setTimeout(() => {
-													startRound();
-												}, 3000);
-											}
+  history.unshift(multiplier.toFixed(2));
+  history = history.slice(0, 25);
+  saveHistory();
+
+  io.emit("history", history);
+
+  gameState = "CRASHED";
+  io.emit("state", { gameState });
+
+  io.emit("crash", multiplier);
+
+  // ⬇️ через 2 секунды старт таймера
+  setTimeout(() => {
+    startCountdown();
+  }, 2000);
+}
+
+let countdown = 10;
+let countdownInterval = null;
+
+function startCountdown() {
+  gameState = "STARTING";
+  countdown = 10;
+
+  io.emit("state", {
+    gameState,
+    countdown
+  });
+
+  countdownInterval = setInterval(() => {
+    countdown--;
+
+    io.emit("state", {
+      gameState,
+      countdown
+    });
+
+    if (countdown <= 0) {
+      clearInterval(countdownInterval);
+      startRound();
+    }
+  }, 1000);
+}
+
 											
 										
 									io.on("connection", async (socket) => {
