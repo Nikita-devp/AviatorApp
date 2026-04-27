@@ -77,17 +77,7 @@ let multiplier = 1;
 let gameState = "WAITING";
 let crashPoint = generateCrash();
 let gameInterval = null;
-										
-async function startRound() {
-gameState = "WAITING";
-multiplier = 1;
-crashPoint = generateCrash();
-											
-											
-io.emit("state", {
-  gameState,
-  countdown: 0
-});
+									
 											
 const users = await User.find();
 											
