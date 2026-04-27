@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+let lastAction = 0;
 
 const {
   getGameState,
@@ -35,54 +36,79 @@ function attachSocket(io) {
     const user = await User.findById(decoded.userId);
     if (!user) return;
 
+    const userId = decoded.userId;
+
+    async function getFreshUser() {
+    return await User.findById(userId);
+}
+
+
     addPlayer(socket.id, user);
 
     socket.emit("balance", user.balance);
 
     socket.on("bet", async (amount) => {
-      if (amount > user.balance) return;
-      if (getGameState() !== "WAITING") return;
+  const user = await getFreshUser();
+  const now = Date.now();
+if (now - lastAction < 200) return;
+lastAction = now;
 
-      user.nextBet = amount;
-      user.cashedOut = false;
+  if (amount > user.balance) return;
+  if (getGameState() !== "WAITING") return;
+if (typeof amount !== "number" || isNaN(amount)) return;
+if (amount <= 0) return;
 
-      await user.save();
+  user.nextBet = amount;
+  user.cashedOut = false;
 
-      const updatedUser = await User.findById(user._id);
-      updatePlayer(socket.id, updatedUser);
+  await user.save();
 
-      sendState(socket, updatedUser);
-    });
+  updatePlayer(socket.id, user);
+  sendState(socket, user);
+});
 
     socket.on("cancelBet", async () => {
-      user.nextBet = 0;
-      await user.save();
+  const user = await getFreshUser();
+  const now = Date.now();
+if (now - lastAction < 200) return;
+lastAction = now;
 
-      const updatedUser = await User.findById(user._id);
-      updatePlayer(socket.id, updatedUser);
+  user.nextBet = 0;
+  await user.save();
 
-      sendState(socket, updatedUser);
-    });
+  updatePlayer(socket.id, user);
+  sendState(socket, user);
+});
 
     socket.on("cashout", async () => {
-      if (!user.bet || user.cashedOut) return;
+  const user = await getFreshUser();
+  const now = Date.now();
+if (now - lastAction < 200) return;
+lastAction = now;
 
-      const win = user.bet * getMultiplier();
+  if (!user.bet || user.cashedOut) return;
 
-      user.balance += win;
-      user.cashedOut = true;
+  const win = user.bet * getMultiplier();
 
-      await user.save();
+  user.balance += win;
+  user.cashedOut = true;
 
-      const updatedUser = await User.findById(user._id);
-      updatePlayer(socket.id, updatedUser);
+  await user.save();
 
-      sendState(socket, updatedUser);
-    });
+  updatePlayer(socket.id, user);
+  sendState(socket, user);
+});
 
-    socket.on("disconnect", () => {
-      removePlayer(socket.id);
-    });
+    socket.on("disconnect", async () => {
+  const user = await getFreshUser();
+
+  if (user) {
+    user.nextBet = 0;
+    await user.save();
+  }
+
+  removePlayer(socket.id);
+});
 
   });
 }

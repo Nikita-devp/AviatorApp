@@ -10,6 +10,15 @@ function setIO(_io) {
   io = _io;
 }
 
+function broadcastPlayers() {
+  const list = Object.values(players).map(p => ({
+    username: p.username,
+    bet: p.bet
+  }));
+
+  io.emit("players", list);
+}
+
 const fs = require("fs");
 
 const HISTORY_FILE = "history.json";
