@@ -3,6 +3,7 @@ let gameState = "WAITING";
 let crashPoint = generateCrash();
 let gameInterval = null;
 let players = {};
+const User = require("../models/User");
 let io;
 
 function setIO(_io) {
