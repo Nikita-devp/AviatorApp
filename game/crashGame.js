@@ -10,6 +10,24 @@ function setIO(_io) {
   io = _io;
 }
 
+const fs = require("fs");
+
+const HISTORY_FILE = "history.json";
+
+let history = [];
+
+if (fs.existsSync(HISTORY_FILE)) {
+  try {
+    history = JSON.parse(fs.readFileSync(HISTORY_FILE));
+  } catch {
+    history = [];
+  }
+}
+
+function saveHistory() {
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history));
+}
+
 function generateCrash() {
 	const r = Math.random();
 	if (r < 0.25) return 1.0;
