@@ -3,6 +3,11 @@ let gameState = "WAITING";
 let crashPoint = generateCrash();
 let gameInterval = null;
 let players = {};
+let io;
+
+function setIO(_io) {
+  io = _io;
+}
 
 function generateCrash() {
 	const r = Math.random();
@@ -158,6 +163,8 @@ function getPlayers() {
 
 module.exports = {
   startRound,
+  setIO, // 🔥 ВОТ ЭТО ДОБАВЬ
+
   getGameState: () => gameState,
   getMultiplier: () => multiplier,
 
