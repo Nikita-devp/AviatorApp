@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-let lastAction = 0;
+const lastActionMap = new Map();
 
 const {
   getGameState,
@@ -47,56 +47,75 @@ function attachSocket(io) {
 
     socket.emit("balance", user.balance);
 
-    socket.on("bet", async (amount) => {
+   socket.on("bet", async (amount, cb) => {
   const user = await getFreshUser();
+
   const now = Date.now();
-if (now - lastAction < 200) return;
-lastAction = now;
+  const last = lastActionMap?.get(userId) || 0;
 
-  if (amount > user.balance) return;
-  if (getGameState() !== "WAITING") return;
-if (typeof amount !== "number" || isNaN(amount)) return;
-if (amount <= 0) return;
+  if (now - last < 200) {
+    return cb?.({ success: false });
+  }
+  lastActionMap.set(userId, now);
 
+  if (typeof amount !== "number" || amount <= 0) {
+    return cb?.({ success: false });
+  }
+
+  if (getGameState() !== "WAITING") {
+    return cb?.({ success: false });
+  }
+
+  if (amount > user.balance) {
+    return cb?.({ success: false });
+  }
+
+  // 💰 ВОТ ТУТ ГЛАВНОЕ
+  user.bet = amount;
   user.nextBet = amount;
+  user.balance -= amount;
   user.cashedOut = false;
 
   await user.save();
 
   updatePlayer(socket.id, user);
   sendState(socket, user);
+
+  // ✅ ОТВЕТ КЛИЕНТУ (ЭТО У ТЕБЯ НЕ БЫЛО)
+  cb?.({
+    success: true,
+    balance: user.balance
+  });
 });
 
     socket.on("cancelBet", async () => {
   const user = await getFreshUser();
-  const now = Date.now();
-if (now - lastAction < 200) return;
-lastAction = now;
 
-  user.nextBet = 0;
-  await user.save();
+user.balance += user.bet || 0;
+user.bet = 0;
+user.nextBet = 0;
 
-  updatePlayer(socket.id, user);
-  sendState(socket, user);
+await user.save();
+
+updatePlayer(socket.id, user);
+sendState(socket, user);
 });
 
     socket.on("cashout", async () => {
   const user = await getFreshUser();
-  const now = Date.now();
-if (now - lastAction < 200) return;
-lastAction = now;
 
-  if (!user.bet || user.cashedOut) return;
+if (!user.bet || user.cashedOut) return;
 
-  const win = user.bet * getMultiplier();
+const win = user.bet * getMultiplier();
 
-  user.balance += win;
-  user.cashedOut = true;
+user.balance += win;
+user.bet = 0;
+user.cashedOut = true;
 
-  await user.save();
+await user.save();
 
-  updatePlayer(socket.id, user);
-  sendState(socket, user);
+updatePlayer(socket.id, user);
+sendState(socket, user);
 });
 
     socket.on("disconnect", async () => {
