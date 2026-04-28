@@ -78,17 +78,22 @@ const users = await User.find();
 
 for (let user of users) {
 if (user.nextBet > 0 && user.balance >= user.nextBet) {
-	user.balance -= user.nextBet;
-	user.bet = user.nextBet;
-	user.nextBet = 0;
-	user.cashedOut = false;
+  user.bet = user.nextBet;
+  user.nextBet = 0;
+  user.cashedOut = false;
 
-	await user.save();
+  await user.save();
 
 	for (let socketId in players) {
 	if (players[socketId]._id.toString() === user._id.toString()) {
 	players[socketId] = user;
-	sendState(io.to(socketId), user);
+	io.to(socketId).emit("state", {
+  gameState,
+  bet: user.bet,
+  nextBet: user.nextBet,
+  cashedOut: user.cashedOut,
+  balance: user.balance
+});
 	}
 	}
 }

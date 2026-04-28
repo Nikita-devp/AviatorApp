@@ -88,10 +88,13 @@ function attachSocket(io) {
   });
 });
 
-    socket.on("cancelBet", async () => {
+    socket.on("cancelBet", async (_, cb) => {
   const user = await getFreshUser();
 
-user.balance += user.bet || 0;
+if (user.bet > 0) {
+  user.balance += user.bet;
+}
+cb?.({ success: true });
 user.bet = 0;
 user.nextBet = 0;
 
@@ -101,10 +104,12 @@ updatePlayer(socket.id, user);
 sendState(socket, user);
 });
 
-    socket.on("cashout", async () => {
+socket.on("cashout", async (_, cb) => {
   const user = await getFreshUser();
 
 if (!user.bet || user.cashedOut) return;
+
+cb?.({ success: true });
 
 const win = user.bet * getMultiplier();
 
