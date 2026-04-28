@@ -35,13 +35,13 @@ function attachSocket(io) {
     }
 
     function sendState(user) {
-      socket.emit("state", {
-  gameState,
-  bet: user.bet,
-  cashedOut: user.cashedOut,
-  balance: user.balance
-});
-    }
+  socket.emit("state", {
+    gameState: getGameState(),   // 👈 ВАЖНО
+    bet: user.bet,
+    cashedOut: user.cashedOut,
+    balance: user.balance
+  });
+}
 
     // ================= PLAYER JOIN =================
     addPlayer(socket.id, user);
