@@ -1,6 +1,5 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const lastActionMap = new Map();
 
 const {
   getGameState,
@@ -14,137 +13,121 @@ const {
 function attachSocket(io) {
   io.on("connection", async (socket) => {
 
-    function sendState(socket, user) {
-      socket.emit("state", {
-        gameState: getGameState(),
-        bet: user.bet,
-        nextBet: user.nextBet,
-        cashedOut: user.cashedOut,
-        balance: user.balance
-      });
-    }
-
+    // ================= AUTH =================
     const token = socket.handshake.auth.token;
-    if (!token) return;
+    if (!token) return socket.disconnect();
 
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch {
-      return;
+      return socket.disconnect();
     }
-
-    const user = await User.findById(decoded.userId);
-    if (!user) return;
 
     const userId = decoded.userId;
 
-    async function getFreshUser() {
-    return await User.findById(userId);
-}
+    const user = await User.findById(userId);
+    if (!user) return socket.disconnect();
 
+    // ================= HELPERS =================
+    async function getUser() {
+      return await User.findById(userId);
+    }
 
+    function sendState(user) {
+      socket.emit("state", {
+        gameState: getGameState(),
+        bet: user.bet || 0,
+        balance: user.balance || 0,
+        cashedOut: user.cashedOut || false
+      });
+    }
+
+    // ================= PLAYER JOIN =================
     addPlayer(socket.id, user);
 
     socket.emit("balance", user.balance);
+    sendState(user);
 
-   socket.on("bet", async (amount, cb) => {
-  const user = await getFreshUser();
-
-  if (typeof amount !== "number" || amount <= 0) {
-    return cb?.({ success: false });
-  }
-
-  if (getGameState() !== "WAITING") {
-    return cb?.({ success: false });
-  }
-
-  if (amount > user.balance) {
-    return cb?.({ success: false });
-  }
-
-  user.balance -= amount;
-  user.bet = amount;
-  user.cashedOut = false;
-
-  await user.save();
-
-  updatePlayer(socket.id, user);
-  broadcastPlayers();
-  sendState(socket, user);
-
-  cb?.({ success: true, balance: user.balance });
-});
-
-    socket.on("cancelBet", async (_, cb) => {
-  try {
-    const user = await getFreshUser();
-
-    // ❌ нет ставки → ничего не делаем
-    if (!user.bet && !user.nextBet) {
-      return cb?.({ success: false });
-    }
-
-    // 💰 возвращаем деньги (учитываем и bet и nextBet)
-    const refund = (user.bet || 0) + (user.nextBet || 0);
-    user.balance += refund;
-
-    // 🧹 очищаем состояние
-    user.bet = 0;
-    user.nextBet = 0;
-    user.cashedOut = false;
-
-    await user.save();
-
-    // 🔄 синхронизация
-    updatePlayer(socket.id, user);
     broadcastPlayers();
-    sendState(socket, user);
 
-    // ✅ ответ клиенту
-    cb?.({
-      success: true,
-      balance: user.balance
+    // ================= BET =================
+    socket.on("bet", async (amount, cb) => {
+      const user = await getUser();
+
+      if (typeof amount !== "number" || amount <= 0) {
+        return cb?.({ success: false });
+      }
+
+      if (getGameState() !== "WAITING") {
+        return cb?.({ success: false });
+      }
+
+      if (amount > user.balance) {
+        return cb?.({ success: false });
+      }
+
+      user.balance -= amount;
+      user.bet = amount;
+      user.cashedOut = false;
+
+      await user.save();
+
+      updatePlayer(socket.id, user);
+      broadcastPlayers();
+      sendState(user);
+
+      cb?.({ success: true, balance: user.balance });
     });
 
-  } catch (err) {
-    console.error("cancelBet error:", err);
-    cb?.({ success: false });
-  }
-});
+    // ================= CANCEL BET =================
+    socket.on("cancelBet", async (_, cb) => {
+      const user = await getUser();
 
-socket.on("cashout", async (_, cb) => {
-  const user = await getFreshUser();
+      if (!user.bet) {
+        return cb?.({ success: false });
+      }
 
-  if (!user.bet || user.cashedOut) {
-    return cb?.({ success: false });
-  }
+      user.balance += user.bet;
+      user.bet = 0;
+      user.cashedOut = false;
 
-  const win = user.bet * getMultiplier();
+      await user.save();
 
-  user.balance += win;
-  user.bet = 0;
-  user.cashedOut = true;
+      updatePlayer(socket.id, user);
+      broadcastPlayers();
+      sendState(user);
 
-  await user.save();
+      cb?.({ success: true, balance: user.balance });
+    });
 
-  updatePlayer(socket.id, user);
-  broadcastPlayers();
-  sendState(socket, user);
+    // ================= CASHOUT =================
+    socket.on("cashout", async (_, cb) => {
+      const user = await getUser();
 
-  cb?.({ success: true });
-});
+      if (!user.bet || user.cashedOut) {
+        return cb?.({ success: false });
+      }
 
+      const win = user.bet * getMultiplier();
+
+      user.balance += win;
+      user.bet = 0;
+      user.cashedOut = true;
+
+      await user.save();
+
+      updatePlayer(socket.id, user);
+      broadcastPlayers();
+      sendState(user);
+
+      cb?.({ success: true, balance: user.balance, win });
+    });
+
+    // ================= DISCONNECT =================
     socket.on("disconnect", async () => {
-  const user = await getFreshUser();
-
-  if (user) {
-    user.nextBet = 0;
-    await user.save();
-  }
-
-  removePlayer(socket.id);
-});
+      removePlayer(socket.id);
+    });
 
   });
 }
