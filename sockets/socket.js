@@ -36,11 +36,11 @@ function attachSocket(io) {
 
     function sendState(user) {
       socket.emit("state", {
-        gameState: getGameState(),
-        bet: user.bet || 0,
-        balance: user.balance || 0,
-        cashedOut: user.cashedOut || false
-      });
+  gameState,
+  bet: user.bet,
+  cashedOut: user.cashedOut,
+  balance: user.balance
+});
     }
 
     // ================= PLAYER JOIN =================
