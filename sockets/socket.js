@@ -51,14 +51,6 @@ function attachSocket(io) {
    socket.on("bet", async (amount, cb) => {
   const user = await getFreshUser();
 
-  const now = Date.now();
-  const last = lastActionMap?.get(userId) || 0;
-
-  if (now - last < 500) {
-    return cb?.({ success: false });
-  }
-  lastActionMap.set(userId, now);
-
   if (typeof amount !== "number" || amount <= 0) {
     return cb?.({ success: false });
   }
@@ -71,10 +63,8 @@ function attachSocket(io) {
     return cb?.({ success: false });
   }
 
-  // 💰 ВОТ ТУТ ГЛАВНОЕ
-  user.bet = 0;
-  user.nextBet = amount;
   user.balance -= amount;
+  user.bet = amount;
   user.cashedOut = false;
 
   await user.save();
@@ -83,48 +73,49 @@ function attachSocket(io) {
   broadcastPlayers();
   sendState(socket, user);
 
-  // ✅ ОТВЕТ КЛИЕНТУ (ЭТО У ТЕБЯ НЕ БЫЛО)
-  cb?.({
-    success: true,
-    balance: user.balance
-  });
+  cb?.({ success: true, balance: user.balance });
 });
 
     socket.on("cancelBet", async (_, cb) => {
   const user = await getFreshUser();
 
-if (user.nextBet > 0) {
-  user.balance += user.nextBet;
-}
-cb?.({ success: true });
-user.bet = 0;
-user.nextBet = 0;
+  if (!user.bet) {
+    return cb?.({ success: false });
+  }
 
-await user.save();
+  user.balance += user.bet;
+  user.bet = 0;
+  user.cashedOut = false;
 
-updatePlayer(socket.id, user);
-broadcastPlayers();
-sendState(socket, user);
+  await user.save();
+
+  updatePlayer(socket.id, user);
+  broadcastPlayers();
+  sendState(socket, user);
+
+  cb?.({ success: true });
 });
 
 socket.on("cashout", async (_, cb) => {
   const user = await getFreshUser();
 
-if (!user.bet || user.cashedOut) return;
+  if (!user.bet || user.cashedOut) {
+    return cb?.({ success: false });
+  }
 
-cb?.({ success: true });
+  const win = user.bet * getMultiplier();
 
-const win = user.bet * getMultiplier();
+  user.balance += win;
+  user.bet = 0;
+  user.cashedOut = true;
 
-user.balance += win;
-user.bet = 0;
-user.cashedOut = true;
+  await user.save();
 
-await user.save();
+  updatePlayer(socket.id, user);
+  broadcastPlayers();
+  sendState(socket, user);
 
-updatePlayer(socket.id, user);
-broadcastPlayers();
-sendState(socket, user);
+  cb?.({ success: true });
 });
 
     socket.on("disconnect", async () => {
