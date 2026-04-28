@@ -34,9 +34,11 @@ function attachSocket(io) {
       return await User.findById(userId);
     }
 
-    function sendState(user) {
+    async function sendState() {
+  const user = await User.findById(userId);
+
   socket.emit("state", {
-    gameState: getGameState(),   // 👈 ВАЖНО
+    gameState: getGameState(),
     bet: user.bet,
     cashedOut: user.cashedOut,
     balance: user.balance
