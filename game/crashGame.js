@@ -234,5 +234,6 @@ module.exports = {
   addPlayer,
   removePlayer,
   updatePlayer,
+  broadcastPlayers,
   getPlayers
 };

@@ -7,7 +7,8 @@ const {
   getMultiplier,
   addPlayer,
   removePlayer,
-  updatePlayer
+  updatePlayer,
+  broadcastPlayers
 } = require("../game/crashGame");
 
 function attachSocket(io) {
@@ -53,7 +54,7 @@ function attachSocket(io) {
   const now = Date.now();
   const last = lastActionMap?.get(userId) || 0;
 
-  if (now - last < 200) {
+  if (now - last < 500) {
     return cb?.({ success: false });
   }
   lastActionMap.set(userId, now);
@@ -71,7 +72,7 @@ function attachSocket(io) {
   }
 
   // 💰 ВОТ ТУТ ГЛАВНОЕ
-  user.bet = amount;
+  user.bet = 0;
   user.nextBet = amount;
   user.balance -= amount;
   user.cashedOut = false;
@@ -79,6 +80,7 @@ function attachSocket(io) {
   await user.save();
 
   updatePlayer(socket.id, user);
+  broadcastPlayers();
   sendState(socket, user);
 
   // ✅ ОТВЕТ КЛИЕНТУ (ЭТО У ТЕБЯ НЕ БЫЛО)
@@ -91,8 +93,8 @@ function attachSocket(io) {
     socket.on("cancelBet", async (_, cb) => {
   const user = await getFreshUser();
 
-if (user.bet > 0) {
-  user.balance += user.bet;
+if (user.nextBet > 0) {
+  user.balance += user.nextBet;
 }
 cb?.({ success: true });
 user.bet = 0;
@@ -101,6 +103,7 @@ user.nextBet = 0;
 await user.save();
 
 updatePlayer(socket.id, user);
+broadcastPlayers();
 sendState(socket, user);
 });
 
@@ -120,6 +123,7 @@ user.cashedOut = true;
 await user.save();
 
 updatePlayer(socket.id, user);
+broadcastPlayers();
 sendState(socket, user);
 });
 
