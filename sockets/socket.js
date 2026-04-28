@@ -77,23 +77,40 @@ function attachSocket(io) {
 });
 
     socket.on("cancelBet", async (_, cb) => {
-  const user = await getFreshUser();
+  try {
+    const user = await getFreshUser();
 
-  if (!user.bet) {
-    return cb?.({ success: false });
+    // ❌ нет ставки → ничего не делаем
+    if (!user.bet && !user.nextBet) {
+      return cb?.({ success: false });
+    }
+
+    // 💰 возвращаем деньги (учитываем и bet и nextBet)
+    const refund = (user.bet || 0) + (user.nextBet || 0);
+    user.balance += refund;
+
+    // 🧹 очищаем состояние
+    user.bet = 0;
+    user.nextBet = 0;
+    user.cashedOut = false;
+
+    await user.save();
+
+    // 🔄 синхронизация
+    updatePlayer(socket.id, user);
+    broadcastPlayers();
+    sendState(socket, user);
+
+    // ✅ ответ клиенту
+    cb?.({
+      success: true,
+      balance: user.balance
+    });
+
+  } catch (err) {
+    console.error("cancelBet error:", err);
+    cb?.({ success: false });
   }
-
-  user.balance += user.bet;
-  user.bet = 0;
-  user.cashedOut = false;
-
-  await user.save();
-
-  updatePlayer(socket.id, user);
-  broadcastPlayers();
-  sendState(socket, user);
-
-  cb?.({ success: true });
 });
 
 socket.on("cashout", async (_, cb) => {
