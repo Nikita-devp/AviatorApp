@@ -5,6 +5,8 @@ let gameInterval = null;
 let players = {};
 const User = require("../models/User");
 let io;
+let countdownInterval = null;
+let countdown = 0;
 
 function setIO(_io) {
   io = _io;
@@ -61,6 +63,17 @@ io.emit("state", {
   countdown: 0
 });
 
+// 🛑 очищаем все старые таймеры
+if (gameInterval) {
+  clearInterval(gameInterval);
+  gameInterval = null;
+}
+
+if (countdownInterval) {
+  clearInterval(countdownInterval);
+  countdownInterval = null;
+}
+
 const users = await User.find();
 
 for (let user of users) {
@@ -98,6 +111,10 @@ setTimeout(async () => {
       balance: freshUser.balance
     });
   }
+  
+  if (gameInterval) {
+  clearInterval(gameInterval);
+}
 
   gameInterval = setInterval(() => {
     multiplier += 0.02;
@@ -115,6 +132,12 @@ setTimeout(async () => {
 
 
 async function endRound() {
+	
+	if (gameInterval) {
+  clearInterval(gameInterval);
+  gameInterval = null;
+}
+	
   history.unshift(multiplier.toFixed(2));
   history = history.slice(0, 25);
   saveHistory();
@@ -149,6 +172,12 @@ async function endRound() {
 
 
 function startCountdown() {
+  // 🛑 защита от двойного запуска
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+
   gameState = "STARTING";
   countdown = 10;
 
@@ -167,6 +196,7 @@ function startCountdown() {
 
     if (countdown <= 0) {
       clearInterval(countdownInterval);
+      countdownInterval = null;
       startRound();
     }
   }, 1000);
