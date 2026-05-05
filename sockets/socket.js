@@ -41,7 +41,7 @@ function attachSocket(io) {
     gameState: getGameState(),
     bet: user.bet,
     cashedOut: user.cashedOut,
-    balance: user.balance
+    balance: user.balance,
 	countdown: remainingTime,
   });
 }
