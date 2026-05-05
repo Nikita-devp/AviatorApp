@@ -42,7 +42,7 @@ function attachSocket(io) {
     bet: user.bet,
     cashedOut: user.cashedOut,
     balance: user.balance,
-	countdown: remainingTime,
+	countdown: remainingTime
   });
 }
 
