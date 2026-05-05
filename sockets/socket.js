@@ -42,7 +42,7 @@ function attachSocket(io) {
     bet: user.bet,
     cashedOut: user.cashedOut,
     balance: user.balance,
-    countdown: getCountdown?.() ?? 0
+    countdown: typeof getCountdown === "function" ? getCountdown() : 0
   });
 }
 
