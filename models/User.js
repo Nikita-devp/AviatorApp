@@ -7,6 +7,11 @@ const userSchema = new mongoose.Schema({
   bet: { type: Number, default: 0 },
   nextBet: { type: Number, default: 0 },
   cashedOut: { type: Boolean, default: false }
+  role: {
+    type: String,
+    enum: ["user", "admin"],
+    default: "user"
+  }
 });
 
 module.exports = mongoose.model("User", userSchema);

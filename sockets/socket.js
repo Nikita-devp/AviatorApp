@@ -40,9 +40,13 @@ function attachSocket(io) {
   socket.emit("state", {
     gameState: getGameState(),
     bet: user.bet,
-    cashedOut: user.cashedOut,
     balance: user.balance,
     countdown: typeof getCountdown === "function" ? getCountdown() : 0
+	
+	bet: user.bet || 0,
+    hasBet: user.bet > 0,
+
+    cashedOut: user.cashedOut || false
   });
 }
 
