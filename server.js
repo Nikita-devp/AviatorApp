@@ -9,6 +9,7 @@ const mongoose = require("mongoose");
 const { attachSocket } = require("./sockets/socket");
 const { startRound, setIO } = require("./game/crashGame");
 const authRoutes = require("./routes/auth");
+const adminRoutes = require("./routes/admin");
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use(cors({
 
 app.use(express.json());
 app.use("/", authRoutes);
+app.use("/admin", adminRoutes);
 
 const server = http.createServer(app);
 
