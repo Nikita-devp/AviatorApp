@@ -28,6 +28,13 @@ router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   const user = await User.findOne({ username });
+  
+  console.log("USER FROM DB:");
+console.log({
+ username: user?.username,
+ role: user?.role
+});
+  
   if (!user) {
     return res.json({ error: "Invalid credentials" });
   }
