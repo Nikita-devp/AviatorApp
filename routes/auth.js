@@ -38,6 +38,12 @@ console.log({
   if (!user) {
     return res.json({ error: "Invalid credentials" });
   }
+  
+  if (user.isBanned) {
+  return res.status(403).json({
+    error: "Your account has been banned"
+  });
+}
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {

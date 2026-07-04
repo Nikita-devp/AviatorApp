@@ -92,5 +92,61 @@ router.patch("/user/:id/balance", auth, admin, async (req, res) => {
   }
 });
 
+router.patch("/user/:id/ban", auth, admin, async (req, res) => {
+  try {
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found"
+      });
+    }
+
+    user.isBanned = true;
+
+    await user.save();
+
+    res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: "Server error"
+    });
+
+  }
+});
+
+router.patch("/user/:id/unban", auth, admin, async (req, res) => {
+  try {
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found"
+      });
+    }
+
+    user.isBanned = false;
+
+    await user.save();
+
+    res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: "Server error"
+    });
+
+  }
+});
+
 
 module.exports = router;
