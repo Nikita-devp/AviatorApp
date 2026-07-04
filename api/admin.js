@@ -55,5 +55,42 @@ router.get("/user/:id", auth, admin, async (req, res) => {
   }
 });
 
+router.patch("/user/:id/balance", auth, admin, async (req, res) => {
+  try {
+
+    const { balance } = req.body;
+
+    if (balance === undefined) {
+      return res.status(400).json({
+        error: "Balance is required"
+      });
+    }
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found"
+      });
+    }
+
+    user.balance = Number(balance);
+
+    await user.save();
+
+    res.json({
+      success: true,
+      balance: user.balance
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: "Server error"
+    });
+
+  }
+});
+
 
 module.exports = router;
