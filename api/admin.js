@@ -13,29 +13,41 @@ router.get("/", auth, admin, (req, res) => {
   });
 });
 
+// ✅ USERS + SEARCH
 router.get("/users", auth, admin, async (req, res) => {
   try {
+    const search = (req.query.search || "").trim();
 
-    const users =
-      await User.find(
-        {},
-        "username balance role"
-      );
+    const filter = {};
+
+    if (search) {
+      filter.$or = [
+        { username: { $regex: search, $options: "i" } }
+      ];
+
+      if (search.match(/^[0-9a-fA-F]{24}$/)) {
+        filter.$or.push({ _id: search });
+      }
+    }
+
+    const users = await User.find(
+      filter,
+      "username balance role isBanned createdAt"
+    )
+      .sort({ createdAt: -1 })
+      .limit(100);
 
     res.json(users);
 
-  } catch {
-
+  } catch (err) {
     res.status(500).json({
-      error:"Server error"
+      error: "Server error"
     });
-
   }
 });
 
 router.get("/user/:id", auth, admin, async (req, res) => {
   try {
-
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -47,22 +59,19 @@ router.get("/user/:id", auth, admin, async (req, res) => {
     res.json(user);
 
   } catch (err) {
-
     res.status(500).json({
       error: "Server error"
     });
-
   }
 });
 
 router.patch("/user/:id/balance", auth, admin, async (req, res) => {
   try {
-
     const { balance } = req.body;
 
-    if (balance === undefined) {
+    if (balance === undefined || isNaN(Number(balance)) || Number(balance) < 0) {
       return res.status(400).json({
-        error: "Balance is required"
+        error: "Invalid balance"
       });
     }
 
@@ -75,7 +84,6 @@ router.patch("/user/:id/balance", auth, admin, async (req, res) => {
     }
 
     user.balance = Number(balance);
-
     await user.save();
 
     res.json({
@@ -84,17 +92,14 @@ router.patch("/user/:id/balance", auth, admin, async (req, res) => {
     });
 
   } catch (err) {
-
     res.status(500).json({
       error: "Server error"
     });
-
   }
 });
 
 router.patch("/user/:id/ban", auth, admin, async (req, res) => {
   try {
-
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -104,25 +109,19 @@ router.patch("/user/:id/ban", auth, admin, async (req, res) => {
     }
 
     user.isBanned = true;
-
     await user.save();
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
   } catch (err) {
-
     res.status(500).json({
       error: "Server error"
     });
-
   }
 });
 
 router.patch("/user/:id/unban", auth, admin, async (req, res) => {
   try {
-
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -132,21 +131,15 @@ router.patch("/user/:id/unban", auth, admin, async (req, res) => {
     }
 
     user.isBanned = false;
-
     await user.save();
 
-    res.json({
-      success: true
-    });
+    res.json({ success: true });
 
   } catch (err) {
-
     res.status(500).json({
       error: "Server error"
     });
-
   }
 });
-
 
 module.exports = router;
