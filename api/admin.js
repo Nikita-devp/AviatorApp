@@ -81,6 +81,46 @@ router.get("/user/:id", auth, admin, async (req, res) => {
   }
 });
 
+router.patch("/user/:id/role", auth, admin, async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    if (!["user", "admin"].includes(role)) {
+      return res.status(400).json({
+        error: "Invalid role"
+      });
+    }
+
+    if (req.user._id.toString() === req.params.id && role !== "admin") {
+      return res.status(400).json({
+        error: "You cannot remove admin role from yourself"
+      });
+    }
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: "User not found"
+      });
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json({
+      success: true,
+      role: user.role
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    });
+  }
+});
+
+
 router.patch("/user/:id/balance", auth, admin, async (req, res) => {
   try {
     const { balance } = req.body;
