@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
+const AdminLog = require("../models/AdminLog");
 
 const auth = require("../middlewares/auth");
 const admin = require("../middlewares/admin");
@@ -11,6 +12,20 @@ router.get("/", auth, admin, (req, res) => {
     username: req.user.username,
     role: req.user.role
   });
+});
+
+router.get("/logs", auth, admin, async (req, res) => {
+  try {
+    const logs = await AdminLog.find()
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({
+      error: "Server error"
+    });
+  }
 });
 
 // ✅ USERS + SEARCH
@@ -107,6 +122,15 @@ router.patch("/user/:id/role", auth, admin, async (req, res) => {
 
     user.role = role;
     await user.save();
+await AdminLog.create({
+  adminId: req.user._id,
+  adminUsername: req.user.username,
+  targetUserId: user._id,
+  targetUsername: user.username,
+  action: "role_change",
+  details: `Изменил роль на ${user.role}`
+});
+
 
     res.json({
       success: true,
@@ -141,6 +165,15 @@ router.patch("/user/:id/balance", auth, admin, async (req, res) => {
 
     user.balance = Number(balance);
     await user.save();
+	
+	await AdminLog.create({
+  adminId: req.user._id,
+  adminUsername: req.user.username,
+  targetUserId: user._id,
+  targetUsername: user.username,
+  action: "balance_change",
+  details: `Изменил баланс на ${user.balance}$`
+});
 
     res.json({
       success: true,
@@ -167,6 +200,15 @@ router.patch("/user/:id/ban", auth, admin, async (req, res) => {
     user.isBanned = true;
     await user.save();
 
+await AdminLog.create({
+  adminId: req.user._id,
+  adminUsername: req.user.username,
+  targetUserId: user._id,
+  targetUsername: user.username,
+  action: "ban",
+  details: "Забанил пользователя"
+});
+
     res.json({ success: true });
 
   } catch (err) {
@@ -188,6 +230,15 @@ router.patch("/user/:id/unban", auth, admin, async (req, res) => {
 
     user.isBanned = false;
     await user.save();
+await AdminLog.create({
+  adminId: req.user._id,
+  adminUsername: req.user.username,
+  targetUserId: user._id,
+  targetUsername: user.username,
+  action: "unban",
+  details: "Разбанил пользователя"
+});
+
 
     res.json({ success: true });
 
