@@ -16,9 +16,25 @@ router.get("/", auth, admin, (req, res) => {
 // ✅ USERS + SEARCH
 router.get("/users", auth, admin, async (req, res) => {
   try {
-    const search = (req.query.search || "").trim();
+    
+	const search = (req.query.search || "").trim();
+const role = req.query.role || "all";
+const banned = req.query.banned || "all";
 
-    const filter = {};
+const filter = {};
+
+if (role !== "all") {
+  filter.role = role;
+}
+
+if (banned === "true") {
+  filter.isBanned = true;
+}
+
+if (banned === "false") {
+  filter.isBanned = false;
+}
+	
 
     if (search) {
       filter.$or = [
